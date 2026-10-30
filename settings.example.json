@@ -1,0 +1,9 @@
+{
+  "schema": "ype-workspace/1",
+  "candidate_skill": "skills/ype-pipeline",
+  "default_mode": "quick",
+  "archive": "/path/to/your/YPE-Library/retained-v8",
+  "notebook_registry": "notebook-registry.json",
+  "notebook_account_label": "Pulse Vibe Daily",
+  "retention": "keep"
+}

@@ -1,6 +1,19 @@
 # CHANGELOG — YPE Pipeline Skill
 
-This changelog tracks the evolution of YPE (YouTube Pipeline Experience) from early recovery/title-matching work into the current v7.2 concrete visual intelligence pipeline.
+This changelog tracks the evolution of YPE (YouTube Pipeline Experience) from early recovery/title-matching work into the current v8 quick/full skill and evidence-checking runner.
+
+## v8.0 — Quick/full skill with an evidence-checking runner
+
+**Date:** 2026-10-29
+
+- Replaced the single long instruction file with a small skill (`skills/ype-pipeline/`) plus a Python runner (`ype.py`: init, acquire, import-cache, sample, verify, render, package, register-notebook).
+- Added **quick** and **full** modes; quick still requires the complete transcript and inspected frames.
+- Runs are durable: bounded sequential acquisition, atomic checkpoints, single-writer locks, rate-limit backoff with a recorded retry time, and no delete operation.
+- `verify` binds review receipts to retained source, caption, transcript, frame and analysis bytes, and fails on any later change.
+- Captions use the conservative `caption-time-v1` cleanup with an audit of every decision.
+- Added the opt-in audience channel: `--community`, `--second-labeller` and `--synthesis`.
+- Added a unittest suite: 104 synthetic tests plus a check that a workspace's README-linked example still verifies.
+- Moved the v7.2 skill to `archive/v7.2/`; it is also kept as `references/full-v7.2-source.md` for full mode.
 
 ## v7.2 — Curated Drop Logic + Maximum Knowledge Acquisition
 
