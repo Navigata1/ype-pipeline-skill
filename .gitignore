@@ -7,3 +7,11 @@ tmp/
 downloads/
 *.part
 *.ytdl
+
+# YPE v8 workspace state (local only)
+runs/
+settings.json
+notebook-registry.json
+.ype.lock
+__pycache__/
+.venv/

@@ -1,6 +1,48 @@
 # CHANGELOG — YPE Pipeline Skill
 
-This changelog tracks the evolution of YPE (YouTube Pipeline Experience) from early recovery/title-matching work into the current v7.2 concrete visual intelligence pipeline.
+This changelog tracks the evolution of YPE (YouTube Pipeline Experience) from early recovery/title-matching work into the current v8 quick/full skill and evidence-checking runner.
+
+## v8.3 — Coverage, depth, reuse and Sabbath observance
+
+**Date:** 2026-10-31
+
+A review of v2 through v8.1 found mechanisms that made YPE thorough and dependable which the v8 rewrite dropped without retiring them. v8.3 restores them as checks with a written escape for legitimate exceptions, never as padding targets or blocking golden samples. Runs created at v8.3 carry `depth_contract: depth/1`; older runs keep their contracts.
+
+- **Reuse reviewed work.** `carry-over` reuses a verified review only when source, captions, cues, transcript and every inspected frame are byte-identical, and labels the reuse. `plan-update` compares a grown playlist with a prior run (restores the v4–v5 registry and incremental updates).
+- **Proportionate visual coverage.** The v7.2 duration formula for sampled frames, a third of it for inspected frames, a computed gap audit, opening and closing scouts, and a recorded `sampling_audit` verdict. `sampling-audit` prints what verify will compute.
+- **Recoverable small text.** `contact-sheets`, `enlarge`, and `capture --at` for targeted frames; `capture --height` downloads a short higher-resolution derived section without touching the retained source. Observations record legibility.
+- **Thin work detection.** Claims and observations must reach every quarter of the source; full source-map sections under 35% of their source words or over `max(10 min, duration/4)` need a reason; three early/middle/late spot checks; template placeholders fail.
+- **Deeper synthesis.** Required intelligence-report sections (claims and evidence; tools and technologies; code, prompts and configurations; visual evidence that changed the understanding; unverified or overstated claims), category compilations with agreements, contradictions and gaps for categories holding two or more videos, and a Gaps section in the master compilation.
+- **Input fidelity.** Caption provenance (manual, automatic, unknown), acknowledged caption gaps, and owner-flagged `priority` sections that need inspected frames and a cited claim.
+- **Portability and provenance.** The NotebookLM account comes from `settings.json`, not code; each analysis and full receipt records the producing model; the v8.1 entry is dated.
+- **Sabbath observance** (from v4–v6.1). No pipeline work from Friday sunset (stopping 15 minutes before) to Saturday sunset, computed offline for the configured location. A command in the window checkpoints the run as `paused_sabbath` and exits 75 without ending it; downloads stop at the window start without counting as failures; `run` acquires until done and resumes on its own after sunset.
+- 173 tests (45 new), passing under the workspace venv and system Python. An independent review cleared the Sabbath window arithmetic and gate; its nine bug findings are fixed, each with a regression test that fails on the pre-fix code.
+
+Deliberately not restored: fuzzy title matching, the blocking golden sample, raw-media deletion and project-impact scoring.
+
+## v8.1 — Source-first depth
+
+**Date:** 2026-10-30
+
+- Restore full section-by-section source substance and integrated visual discoveries; project applications are a separate downstream report.
+- Activate source maps and semantic acceptance by default for new full runs; historical receipt contracts stay readable.
+- Bind infographic concept plans and source revisions to explicit coverage, relationship, label, legibility and specificity review.
+- Package exactly one enriched NotebookLM source per unique video, with capacity blockers instead of automatic blending/splitting.
+- Retain the optional audience channel and claim matrix as distinct analytical layers.
+- Add synthetic behavioral tests for the new contracts, including 37 videos producing 37 sources.
+
+## v8.0 — Quick/full skill with an evidence-checking runner
+
+**Date:** 2026-10-29
+
+- Replaced the single long instruction file with a small skill (`skills/ype-pipeline/`) plus a Python runner (`ype.py`: init, acquire, import-cache, sample, verify, render, package, register-notebook).
+- Added **quick** and **full** modes; quick still requires the complete transcript and inspected frames.
+- Runs are durable: bounded sequential acquisition, atomic checkpoints, single-writer locks, rate-limit backoff with a recorded retry time, and no delete operation.
+- `verify` binds review receipts to retained source, caption, transcript, frame and analysis bytes, and fails on any later change.
+- Captions use the conservative `caption-time-v1` cleanup with an audit of every decision.
+- Added the opt-in audience channel: `--community`, `--second-labeller` and `--synthesis`.
+- Added a unittest suite: 104 synthetic tests plus a check that a workspace's README-linked example still verifies.
+- Moved the v7.2 skill to `archive/v7.2/`; it is also kept as `references/full-v7.2-source.md` for full mode.
 
 ## v7.2 — Curated Drop Logic + Maximum Knowledge Acquisition
 

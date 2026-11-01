@@ -1,0 +1,4 @@
+interface:
+  display_name: "YPE — Quick or Full"
+  short_description: "Retained playlist research, comment checks and NotebookLM audio/slides"
+  default_prompt: "Use $ype-pipeline for this playlist. Follow the requested quick or full mode and preserve source videos."

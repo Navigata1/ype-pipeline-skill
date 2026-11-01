@@ -1,0 +1,18 @@
+{
+  "schema": "ype-workspace/1",
+  "candidate_skill": "skills/ype-pipeline",
+  "default_mode": "quick",
+  "archive": "/path/to/your/YPE-Library/retained-v8",
+  "notebook_registry": "notebook-registry.json",
+  "notebook_account_label": "Pulse Vibe Daily",
+  "retention": "keep",
+  "sabbath": {
+    "enabled": true,
+    "rule": "friday-sunset-to-saturday-sunset",
+    "location": "Huntsville, AL",
+    "latitude": 34.7304,
+    "longitude": -86.5861,
+    "timezone": "America/Chicago",
+    "stop_minutes_before_sunset": 15
+  }
+}
