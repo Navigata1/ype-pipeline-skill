@@ -1,6 +1,6 @@
 # Audience channel: comments, a second labeller, the claim matrix
 
-The transcript is what was said, the frames are what was shown, and the comments are how it landed. Three opt-in run options add that third channel. They only widen a run: once a run promises a check it cannot drop it or resize it, so change a sample size in a new run.
+The transcript is what was said, the frames are what was shown, and the comments are how it landed. Three opt-in run options add that third channel. Keep reception attributed and distinct from the source account: comments do not rewrite what the speaker said or become project recommendations. New full-run NotebookLM sources contain only the video account; community reports and the claim matrix stay in the local report unless separately requested for notebook import. They only widen a run: once a run promises a check it cannot drop it or resize it, so change a sample size in a new run.
 
 | Option | Adds | Needs |
 |---|---|---|
@@ -95,7 +95,7 @@ Rows are themes that **two or more videos** speak to. Columns are each video's s
 - speaker cells cite a timestamp inside the video (`61:11`, `1:01:11`), a frame this video's `analysis.json` lists as inspected (`f_0042.jpg`), or a source URL;
 - commenter cells cite comment ranks from that video's `top.json` (`#3`).
 
-`claim-matrix.json` binds the run membership, every `analysis.md` hash and every `metrics.json` hash; a later edit makes it stale until you re-review and rebind it. `verify` checks it, `render` draws it under "Across the videos", and `package` appends it to the cross-video packet.
+`claim-matrix.json` binds the run membership, every `analysis.md` hash and every `metrics.json` hash; a later edit makes it stale until you re-review and rebind it. `verify` checks it, `render` draws it under "Across the videos", and legacy `package` appends it to the cross-video packet. New one-video-source contracts retain it in the local report as a separate analytical layer.
 
 ## 7. Limits to state with every community check
 

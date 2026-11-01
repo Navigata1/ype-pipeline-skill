@@ -88,3 +88,39 @@ Speaker cells cite in-range timestamps, inspected frames or URLs; commenter cell
 ```
 
 While waiting, use queued/generating/waiting_quota/blocked states and record pending reasons. Never populate ready fields in anticipation of success. Save capability/QA evidence without credentials, login codes or private account tokens.
+
+## New source-first full-run acceptance
+
+The historical shapes above remain readable. Newly initialized full runs automatically require the following additional fields; a legacy run is not silently upgraded.
+
+`full-review.json` also binds `source_map_sha256` and records these actual review attestations as `true`: `substance_preserved`, `visuals_integrated`, `source_first`, `project_applications_separate`, `stale_uncertainties_resolved`. Source map sections are ordered, nonoverlapping inclusive cue ranges covering all canonical cues. Each has a nonempty heading present in the account; `frame_names` contains the inspected frames integrated into that section, including every written visual observation somewhere in the map. These are structural checks plus attestations, not a proof that mapped prose preserves the full source.
+
+`infographic-brief.json`:
+```json
+{
+  "enhanced_sha256": "current enhanced-transcript.md hash",
+  "source_map_sha256": "current enhanced-source-map.json hash",
+  "composition": {"form": "parallel frameworks with annotated examples", "rationale": "Explain why this form matches the source relationships"},
+  "concepts": [{"id":"actual-main-concept", "title":"Source-specific concept", "cue_indices":[0], "frames":["f_0010.jpg"], "represented_as":"What the image should explain about it"}]
+}
+```
+Each concept cites valid caption indices, inspected frames, or both. The inventory must represent the major source concepts; no fixed count proves completeness.
+
+`infographic.json` additionally binds `brief: EVIDENCE`, `enhanced_sha256` and:
+```json
+{
+  "quality_review": {
+    "reviewer":"actual acting reviewer and date",
+    "concept_ids":["actual-main-concept"],
+    "coverage_checked":true,
+    "relationships_checked":true,
+    "labels_checked":true,
+    "legibility_checked":true,
+    "source_specificity_checked":true,
+    "review_notes":"Concrete observations from the generated image, with any revisions and remaining scope limits"
+  }
+}
+```
+All brief concept IDs must appear exactly once in the image review. Image/request/brief/source hashes bind the accepted revision. A later source or brief change makes the image review stale.
+
+`notebooklm/package.json` carries `source_contract: one-video/1` and exactly one packet with a `video_id` for each unique video. It does not prepend a master or application source, combine videos, or split an oversized video. Packet contents are the neutral expanded account and written visual evidence; captions may additionally be retained in the packet. For `caption_mode: references`, the video URL is sufficient as a local reference; a second remote import is not required. `state.json.sources` records one distinct observed remote identity for each packet, bound to its hash, with the intended visible title verified. The source IDs/titles and retrieval content still require actual browser observation.

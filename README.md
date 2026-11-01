@@ -2,7 +2,7 @@
 
 **YPE (YouTube Pipeline Experience)** turns YouTube videos and playlists into evidence-grounded research: the complete transcript, sampled frames with their original timestamps, a per-video analysis that separates what was said from what was shown, and an expandable HTML report. Full mode adds enhanced transcripts, intelligence reports, native image-generated infographics and a playlist-named NotebookLM notebook with audio and slides.
 
-Current version: **YPE v8.0**. The v7.2 single-file skill is kept in [`archive/v7.2/`](archive/v7.2/SKILL.md).
+Current version: **YPE v8.1**. The v7.2 single-file skill is kept in [`archive/v7.2/`](archive/v7.2/SKILL.md).
 
 ## What changed in v8
 
@@ -12,6 +12,14 @@ v7.2 was a long instruction file; v8 is a small skill plus a Python runner that 
 - **Durable, resumable runs.** Bounded acquisition (two videos per call by default), atomic checkpoints, single-writer locks, rate-limit backoff that returns a retry time, and no delete operation.
 - **Evidence binding.** Retained source and caption hashes, frame manifests with original presentation times, and review receipts bound to the exact bytes reviewed. `verify` fails when anything changes after review.
 - **Audience channel (opt-in).** `--community` ranks a video's top comments and scores how its claims landed; `--second-labeller` adds a blind labeller from another model family and reports Cohen's kappa; `--synthesis` builds a cited cross-video claim matrix.
+
+## Source-first depth in v8.1
+
+Full mode preserves the complete cleaned spoken substance section by section, integrates inspected visual discoveries, and reviews source coverage explicitly. Project applications live in a separate `project-applications.md`. Infographics need a source-backed concept plan and acceptance for coverage, relationships, labels, legibility and source specificity.
+
+New full runs package exactly one neutral enriched source per unique video. Capacity limits stop packaging instead of silently combining videos, splitting one video or reducing substance. Audience reception and the claim matrix remain opt-in analytical layers in the local report. Existing runs keep their recorded contracts.
+
+These checks bind evidence and recorded review; they cannot independently prove semantic quality or remote actions.
 
 ## Layout
 

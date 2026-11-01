@@ -22,7 +22,9 @@ def make_run(urls,title,mode,archive=None,playlist=None,inventory_data=None,test
         if vid in seen:continue
         seen[vid]=True
         videos.append({'id':vid,'url':'https://www.youtube.com/watch?v='+vid,'title':label,'state':'pending','attempts':0})
-    return {'schema':'ype-run/1','version':VERSION,'created_at':time.time(),'title':title,'mode':mode,'collection_key':key,'playlist_url':playlist,'inventory_complete':True,'membership':members,'videos':videos,'archive':str(Path(archive).expanduser().absolute()) if archive else None,'retention':'keep','test_fixture':test_fixture,'limits':{'max_items':2,'max_height':720,'max_bytes_per_video':2*1024**3,'batch_seconds':900},'status':'awaiting_materials'}
+    run={'schema':'ype-run/1','version':VERSION,'created_at':time.time(),'title':title,'mode':mode,'collection_key':key,'playlist_url':playlist,'inventory_complete':True,'membership':members,'videos':videos,'archive':str(Path(archive).expanduser().absolute()) if archive else None,'retention':'keep','test_fixture':test_fixture,'limits':{'max_items':2,'max_height':720,'max_bytes_per_video':2*1024**3,'batch_seconds':900},'status':'awaiting_materials','editorial_contract':'source-first/1'}
+    if mode=='full':run.update(source_fidelity_contract='timed-source-account/1',infographic_quality_contract='source-coverage/1',notebook_source_contract='one-video/1',notebook_caption_mode='references')
+    return run
 
 def load(root):
     run=read(Path(root)/'run.json')

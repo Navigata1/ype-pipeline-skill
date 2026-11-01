@@ -4,7 +4,7 @@ import contextlib, fcntl, hashlib, html, json, os, re, time, tempfile
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = '8.0'
+VERSION = '8.1'
 
 def read(path):
     return json.loads(Path(path).read_text())

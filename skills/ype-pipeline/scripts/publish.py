@@ -18,7 +18,7 @@ def image_ok(path):
     except (ImportError,OSError,ValueError,SyntaxError):return False
 
 def video_checks(root,video,mode):
-    errors=[]; vid=video.get('id');dest=Path(root)/'videos'/str(vid)
+    errors=[]; vid=video.get('id');dest=Path(root)/'videos'/str(vid);run=read(Path(root)/'run.json')
     if video.get('state')=='skipped':
         return ['Skipped item is an explicit coverage gap: '+video.get('skip_reason','reason missing')]
     try:
@@ -54,7 +54,9 @@ def video_checks(root,video,mode):
             if any(f not in inspected for f in c.get('frames',[])):errors.append('claim cites an uninspected frame')
         text=(dest/'analysis.md').read_text()
         if a.get('analysis_sha256')!=sha(dest/'analysis.md'):errors.append('analysis prose changed after review')
-        for heading in ['Thesis','What was said','What the frames add','Uncertainties','Application']:
+        headings=['Thesis','What was said','What the frames add','Uncertainties']
+        if run.get('editorial_contract')!='source-first/1':headings.append('Application')
+        for heading in headings:
             if not re.search(r'^#{1,6}\s+'+re.escape(heading)+r'\s*$',text,re.M|re.I):errors.append('analysis section missing: '+heading)
         if mode=='full':
             mp=dest/'moments.json';plan=read(mp);moments=plan['moments']
@@ -77,23 +79,52 @@ def video_checks(root,video,mode):
             if not image_ok(asset['file']['path']):errors.append('native infographic does not decode as an image')
             if asset.get('analysis_sha256')!=sha(dest/'analysis.md'):errors.append('infographic based on stale analysis')
             if not asset.get('generated_at') or not asset.get('tool_call_ref') or not evidence_ok(asset.get('request',{})):errors.append('image generation request/receipt absent')
-            run=read(Path(root)/'run.json')
             if run.get('source_fidelity_contract')=='timed-source-account/1':
                 account=read(dest/'enhanced-source-map.json')
                 if account.get('source_sha256')!=media['source']['sha256'] or account.get('transcript_sha256')!=sha(dest/'transcript.txt') or account.get('enhanced_sha256')!=sha(dest/'enhanced-transcript.md'):errors.append('expanded source map is stale')
                 if not account.get('reviewer') or not account.get('examples_and_qualifications_checked'):errors.append('expanded source semantic review absent')
-                covered=set()
+                covered=set();mapped_frames=set();previous_end=-1
                 for section in account.get('sections',[]):
                     if type(section.get('cue_start')) is not int or type(section.get('cue_end')) is not int or not 0<=section['cue_start']<=section['cue_end']<len(cues):errors.append('expanded source cue range invalid');continue
+                    if run.get('editorial_contract')=='source-first/1' and section['cue_start']<=previous_end:errors.append('expanded source sections overlap or are out of order')
+                    previous_end=section['cue_end']
                     covered.update(range(section['cue_start'],section['cue_end']+1))
-                    if section.get('heading') not in (dest/'enhanced-transcript.md').read_text():errors.append('expanded source heading missing')
+                    if not section.get('heading') or section['heading'] not in (dest/'enhanced-transcript.md').read_text():errors.append('expanded source heading missing')
                     if any(name not in inspected for name in section.get('frame_names',[])):errors.append('expanded source cites uninspected frame')
+                    mapped_frames.update(section.get('frame_names',[]))
                 if covered!=set(range(len(cues))):errors.append('expanded source map omits caption intervals')
+                if run.get('editorial_contract')=='source-first/1' and not {o['frame'] for o in observations}<=mapped_frames:errors.append('reviewed visual observations are not mapped into source sections')
                 if review.get('source_map_sha256')!=sha(dest/'enhanced-source-map.json'):errors.append('full review does not bind expanded source map')
+                if run.get('editorial_contract')=='source-first/1':
+                    for key in ['substance_preserved','visuals_integrated','source_first','project_applications_separate','stale_uncertainties_resolved']:
+                        if review.get(key) is not True:errors.append('full semantic acceptance absent: '+key)
+            if run.get('infographic_quality_contract')=='source-coverage/1':
+                errors+=infographic_checks(dest,asset,cues,inspected)
     except (OSError,ValueError,KeyError,TypeError,StopIteration) as e:
         errors.append('missing or invalid artifact: '+str(e))
     errors+=community_checks(root,video)
     return list(dict.fromkeys(errors))
+
+def infographic_checks(dest,asset,cues,inspected):
+    """Bind the content plan and human quality judgment; neither is proof of beauty."""
+    errors=[];brief_path=dest/'infographic-brief.json';brief=read(brief_path)
+    if not evidence_ok(asset.get('brief',{})) or asset.get('brief',{}).get('sha256')!=sha(brief_path):errors.append('infographic brief absent or changed')
+    if brief.get('enhanced_sha256')!=sha(dest/'enhanced-transcript.md') or asset.get('enhanced_sha256')!=sha(dest/'enhanced-transcript.md'):errors.append('infographic stale against expanded source account')
+    if brief.get('source_map_sha256')!=sha(dest/'enhanced-source-map.json'):errors.append('infographic source coverage map is stale')
+    composition=brief.get('composition',{})
+    if not composition.get('form') or not composition.get('rationale'):errors.append('infographic composition lacks a source-specific rationale')
+    concepts=brief.get('concepts',[]);ids=[c.get('id') for c in concepts]
+    if not ids or any(not isinstance(i,str) or not i.strip() for i in ids) or len(set(ids))!=len(ids):errors.append('infographic main-concept inventory absent or duplicated')
+    for concept in concepts:
+        if not concept.get('title') or not concept.get('represented_as') or not (concept.get('cue_indices') or concept.get('frames')):errors.append('infographic concept lacks content, representation or evidence')
+        if any(type(i) is not int or not 0<=i<len(cues) for i in concept.get('cue_indices',[])):errors.append('infographic concept cue reference invalid')
+        if any(f not in inspected for f in concept.get('frames',[])):errors.append('infographic concept cites uninspected frame')
+    review=asset.get('quality_review',{});reviewed=review.get('concept_ids',[])
+    if len(reviewed)!=len(ids) or set(reviewed)!=set(ids):errors.append('infographic quality review does not cover every main concept')
+    if not review.get('reviewer') or not review.get('review_notes'):errors.append('infographic quality review lacks reviewer or substantive notes')
+    for key in ['coverage_checked','relationships_checked','labels_checked','legibility_checked','source_specificity_checked']:
+        if review.get(key) is not True:errors.append('infographic quality acceptance absent: '+key)
+    return errors
 
 def community_checks(root,video):
     try:return community.video_checks(root,video,read(Path(root)/'run.json'))
@@ -132,6 +163,11 @@ def validate(root):
             if state.get('notebook_title')!=run['title'] or state.get('collection_key')!=run['collection_key']:errors.append('notebook identity/title mismatch')
             if not notebook_url_ok(state.get('notebook_url','')):errors.append('notebook URL absent or invalid')
             packets=package['packets'];receipts=state.get('sources',[])
+            if run.get('notebook_source_contract')=='one-video/1':
+                packet_ids=[p.get('video_id') for p in packets]
+                if package.get('source_contract')!='one-video/1' or sorted(packet_ids,key=str)!=sorted(ids):errors.append('NotebookLM requires exactly one source per video')
+                remote_ids=[s.get('remote_source_id') for s in receipts]
+                if len(receipts)!=len(packets) or len(set(remote_ids))!=len(remote_ids):errors.append('NotebookLM per-video source receipts are duplicated or incomplete')
             expected={x['sha256'] for x in packets}
             if expected!={x.get('sha256') for x in receipts} or any(not x.get('remote_source_id') or not x.get('visible_title_verified') for x in receipts):errors.append('source receipts do not match all packaged bytes')
             if not all(evidence_ok(p) for p in packets):errors.append('source packet changed after packaging')
@@ -143,13 +179,14 @@ def validate(root):
                 if asset.get('status')!='ready' or not asset.get('title') or not asset.get('artifact_id') or not asset.get('opened_and_checked'):errors.append(name+' not visibly ready and checked')
                 if asset.get('source_package_sha256')!=sha(root/'notebooklm/package.json'):errors.append(name+' source revision is stale')
             if not state.get('retrieval_checks') or any(not c.get('question') or not c.get('source_citation') or not c.get('matches_local_evidence') for c in state.get('retrieval_checks',[])):errors.append('NotebookLM substantive retrieval check absent')
-            if package.get('caption_mode')=='references':
+            if package.get('caption_mode')=='references' and run.get('notebook_source_contract')!='one-video/1':
                 originals=state.get('original_sources',[])
                 if {x.get('video_id') for x in originals}!=set(ids) or any(not x.get('source_account_verified') or not x.get('remote_source_id') for x in originals):errors.append('per-video original/source-account receipts absent')
         except (OSError,ValueError,KeyError,TypeError) as e:errors.append('NotebookLM incomplete: '+str(e))
     errors+=community.matrix_problems(root,run)
     ok=not errors and all(not r['errors'] for r in rows)
     report={'mode':run['mode'],'integrity_pass':ok,'status':run['mode']+'_complete_with_review_attestations' if ok else 'incomplete','test_fixture':run.get('test_fixture',False),'per_video':rows,'batch_errors':errors,'limits':'Checks bind local bytes, references and recorded observations. Semantic correctness and remote actions are agent attestations, not independently proven by this script.'}
+    if run.get('editorial_contract')=='source-first/1' and run['mode']=='full':report['acceptance']={'artifact_integrity':ok,'semantic_and_visual':'attested' if all(not r['errors'] for r in rows) else 'pending','independently_proven':False}
     write(root/'validation.json',report);return report
 
 class SafeHTML(HTMLParser):
@@ -239,6 +276,8 @@ def render(root):
         sections.append(f'<details><summary>{html.escape(v.get("title") or v.get("id") or "Unavailable entry")}</summary><div class="body"><p class="meta">{html.escape(status)} · {" · ".join(links)}</p>{body}</div></details>')
     master=root/'master-compilation.md';synthesis=markdown(master.read_text()) if master.exists() else '<p>A cross-video synthesis has not been added yet.</p>'
     synthesis+=matrix_html(root,run)
+    applications=root/'project-applications.md'
+    if applications.is_file():synthesis+='<details><summary>Separate project applications — analyst interpretation</summary><div class="body">'+markdown(applications.read_text())+'</div></details>'
     fixture_notice='<p class="notice"><strong>Synthetic test fixture. This page does not prove real video analysis or remote generation.</strong></p>' if run.get('test_fixture') else ''
     page=f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(run["title"])} — YPE</title><style>{STYLE}</style></head><body><main><p class="eyebrow">YouTube Pipeline Experience · {run["mode"]} analysis</p><h1>{html.escape(run["title"])}</h1>{fixture_notice}<p class="notice">{html.escape(validation["status"])} · {len(run["membership"])} inventory entries / {len(run["videos"])} unique videos. Raw media is retained. Transcripts and sampled frames are evidence; claims and limitations are distinguished in each analysis.</p><section aria-labelledby="synthesis"><h2 id="synthesis">Across the videos</h2>{synthesis}</section><section aria-labelledby="videos"><h2 id="videos">Video research and source evidence</h2>{"".join(sections)}</section><p class="meta">{html.escape(validation["limits"])} No remote resources load with this report. Evidence links point to this machine.</p></main></body></html>'
     write_text(root/'report.html',page);return root/'report.html'
@@ -264,12 +303,37 @@ def package_inputs(root,run):
         filenames=['analysis.md','analysis.json','transcript.txt','cues.json','frames/manifest.json']
         if run['mode']=='full':filenames+=['enhanced-transcript.md','intelligence-report.md','moments.json','infographic.json','full-review.json']
         if (Path(root)/'videos'/v['id']/'enhanced-source-map.json').exists():filenames+=['enhanced-source-map.json']
+        if run.get('infographic_quality_contract')=='source-coverage/1':filenames+=['infographic-brief.json']
         if scored:filenames+=[n for n in ['community/top.json','community/metrics.json','community/community.md'] if (Path(root)/'videos'/v['id']/n).exists()]
         for name in filenames:
             p=Path(root)/'videos'/v['id']/name;out[str(p.relative_to(root))]=sha(p)
     for name in ['master-compilation.md','synthesis.json','categories.json','claim-matrix.json']:
-        if (Path(root)/name).exists():out[name]=sha(Path(root)/name)
+        if run.get('notebook_source_contract')!='one-video/1' and (Path(root)/name).exists():out[name]=sha(Path(root)/name)
     return out
+
+def video_sources(root,run,words_per_source,source_cap,caption_mode):
+    """One neutral enriched account per unique video, or a blocker before any write."""
+    if len(run['videos'])>source_cap-1:raise ValueError('One source per video exceeds the notebook source budget (one slot reserved). Plan named volumes; do not combine or omit videos.')
+    planned=[]
+    for video in run['videos']:
+        errors=video_checks(root,video,run['mode'])
+        if errors:raise ValueError('Only reviewed and linked analyses can be packaged: '+video['id']+' '+errors[0])
+        dest=root/'videos'/video['id'];analysis=read(dest/'analysis.json');mf=read(dest/'frames/manifest.json')
+        chunks=[f'# {video["title"]} — expanded source account\nSource: {video["url"]}\nVideo ID: {video["id"]}',(dest/'enhanced-transcript.md').read_text(),
+            '## Reviewed visual evidence\n'+'\n'.join(f'- [{timestamp(o["timestamp_seconds"])}] {o["frame"]}: {o["description"]}' for o in analysis['observations']),
+            f'Captured frames: {len(mf["frames"])}. Inspected frames: {len(set(analysis["inspected_frames"]))}. Sampled viewing; actual image pixels are not embedded in this text source.']
+        if caption_mode=='retained':chunks.append('## Original timestamped captions\n'+(dest/'transcript.txt').read_text())
+        else:chunks.append('## Original source reference\n'+video['url']+'\nOriginal captions and media remain in the local archive. This source contains the reviewed expanded account; the original URL is a reference, not a separate required notebook import.')
+        text='\n\n'.join(chunks)+'\n'
+        if len(text.split())>words_per_source:raise ValueError('Video '+video['id']+' exceeds the configured per-source word budget. Verify actual provider limits or plan an explicit exception; do not split, truncate or summarize it to fit.')
+        if len(text.encode('utf-8'))>190*1024**2:raise ValueError('Video '+video['id']+' exceeds the local 190 MiB source budget. Resolve the limit before upload.')
+        planned.append((video,text))
+    out=root/'notebooklm';out.mkdir(exist_ok=True);parts=[]
+    for i,(video,text) in enumerate(planned,1):
+        p=out/f'source-{i:03}.txt';write_text(p,text)
+        parts.append({'title':video['title']+' — YPE expanded source account','video_id':video['id'],'words':len(text.split()),**evidence(p)})
+    result={'collection_key':run['collection_key'],'collection_digest':identity_hash(run),'input_hashes':package_inputs(root,run),'notebook_title':run['title'],'account_label':'Pulse Vibe Daily','packets':parts,'source_cap':source_cap,'words_per_source':words_per_source,'granularity':'video','caption_mode':caption_mode,'source_contract':'one-video/1','purpose':'One neutral enriched source per video. Project applications, audience reception and cross-video synthesis stay in separate local reports. No upload has occurred.'}
+    write(out/'package.json',result);return result
 
 def packets(root,words_per_source=40000,source_cap=50,granularity=None,caption_mode=None):
     if not 100<=words_per_source<=400000 or not 2<=source_cap<=1000:raise ValueError('Invalid source packet bounds.')
@@ -277,6 +341,9 @@ def packets(root,words_per_source=40000,source_cap=50,granularity=None,caption_m
     granularity=granularity or ('video' if run['mode']=='full' else 'batch')
     caption_mode=caption_mode or run.get('notebook_caption_mode','retained')
     if granularity not in ('video','batch') or caption_mode not in ('retained','references'):raise ValueError('Unknown source packaging policy.')
+    if run.get('notebook_source_contract')=='one-video/1':
+        if granularity!='video':raise ValueError('This run requires one NotebookLM source per video; batch packing is incompatible.')
+        return video_sources(root,run,words_per_source,source_cap,caption_mode)
     for v in run['videos']:
         errors=video_checks(root,v,run['mode'])
         if errors:raise ValueError('Only reviewed and linked analyses can be packaged: '+str(v.get('id'))+' '+errors[0])

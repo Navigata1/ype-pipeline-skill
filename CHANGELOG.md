@@ -2,6 +2,17 @@
 
 This changelog tracks the evolution of YPE (YouTube Pipeline Experience) from early recovery/title-matching work into the current v8 quick/full skill and evidence-checking runner.
 
+## v8.1 — Source-first depth
+
+**Date:** 2026-10-30
+
+- Restore full section-by-section source substance and integrated visual discoveries; project applications are a separate downstream report.
+- Activate source maps and semantic acceptance by default for new full runs; historical receipt contracts stay readable.
+- Bind infographic concept plans and source revisions to explicit coverage, relationship, label, legibility and specificity review.
+- Package exactly one enriched NotebookLM source per unique video, with capacity blockers instead of automatic blending/splitting.
+- Retain the optional audience channel and claim matrix as distinct analytical layers.
+- Add synthetic behavioral tests for the new contracts, including 37 videos producing 37 sources.
+
 ## v8.0 — Quick/full skill with an evidence-checking runner
 
 **Date:** 2026-10-29
