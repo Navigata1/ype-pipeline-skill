@@ -4,6 +4,13 @@ from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/ype-pipeline/scripts'))
+import os, tempfile as _tempfile, json as _json
+# Isolate the suite from the owner's workspace settings. The observance is
+# switched off here only so tests stay deterministic on any day of the week;
+# test_v83.py exercises the Sabbath window with explicit clocks.
+_SETTINGS=Path(_tempfile.mkdtemp(prefix='ype-settings-'))/'settings.json'
+_SETTINGS.write_text(_json.dumps({'notebook_account_label':'Pulse Vibe Daily','sabbath':{'enabled':False}}))
+os.environ['YPE_SETTINGS']=str(_SETTINGS)
 import community, core, media, publish, ype
 
 A,B='Synthetic_A','Synthetic_B'
@@ -37,7 +44,7 @@ def materials(root,video):
     core.write(dest/'analysis.json',{'source_sha256':data['source']['sha256'],'transcript_sha256':core.sha(dest/'transcript.txt'),'analysis_sha256':core.sha(dest/'analysis.md'),'reviewer':'synthetic-fixture','transcript_reviewed':True,'inspected_frames':[r['name'] for r in rows],'inspected_frame_sha256':{r['name']:r['sha256'] for r in rows},'observations':[{'frame':rows[0]['name'],'timestamp_seconds':0.,'description':'This is a synthetic observation that does not assert actual viewing.'}],'claims':[{'text':'Synthetic claim references first caption cue.','cue_indices':[0],'frames':[]}]})
 
 def build(root,vids=(A,),**options):
-    run=ype.make_run([url(v) for v in vids],'Fixture playlist','quick',test_fixture=True);community.configure(run,**options)
+    run=ype.make_run([url(v) for v in vids],'Fixture playlist','quick',test_fixture=True);run.pop('depth_contract');community.configure(run,**options)
     for video in run['videos']:materials(root,video)
     ype.save(root,run);bind_synthesis(root,run);return run
 

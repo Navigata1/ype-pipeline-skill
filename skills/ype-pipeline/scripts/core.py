@@ -4,10 +4,23 @@ import contextlib, fcntl, hashlib, html, json, os, re, time, tempfile
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = '8.1'
+VERSION = '8.3'
+LEGACY_ACCOUNT = 'Pulse Vibe Daily'
 
 def read(path):
     return json.loads(Path(path).read_text())
+
+def settings_path():
+    """Workspace settings: two folders above the skill, or $YPE_SETTINGS."""
+    return Path(os.environ.get('YPE_SETTINGS') or Path(__file__).resolve().parents[3]/'settings.json')
+
+def settings():
+    p=settings_path()
+    return read(p) if p.is_file() else {}
+
+def account_label(run):
+    """Runs before v8.3 used one hard-coded account; newer runs record theirs at init."""
+    return run.get('notebook_account_label',LEGACY_ACCOUNT) if 'depth_contract' not in run else run.get('notebook_account_label')
 
 def write(path, data):
     write_text(path,json.dumps(data,ensure_ascii=False,indent=2)+'\n')

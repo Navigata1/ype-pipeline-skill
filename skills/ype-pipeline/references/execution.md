@@ -23,6 +23,22 @@ python3 scripts/ype.py community-score "$RUN" VIDEO_ID
 python3 scripts/ype.py claim-matrix "$RUN" skeleton           # then: claim-matrix "$RUN" check
 ```
 
+Reuse, review tools and the Sabbath (details in `depth.md`):
+
+```sh
+python3 scripts/ype.py sabbath                                  # observance window; no work inside it
+python3 scripts/ype.py run "$RUN"                                # acquire until done; waits through backoff and the Sabbath
+python3 scripts/ype.py plan-update "$RUN" --from "$PRIOR_RUN"    # a grown playlist: what is new, removed, reusable
+python3 scripts/ype.py carry-over "$RUN" VIDEO_ID --from "$PRIOR_RUN"
+python3 scripts/ype.py sampling-audit "$RUN" VIDEO_ID
+python3 scripts/ype.py contact-sheets "$RUN" VIDEO_ID
+python3 scripts/ype.py enlarge "$RUN" VIDEO_ID f_0041.jpg --box 0,0,400,200
+python3 scripts/ype.py capture "$RUN" VIDEO_ID --at 712.5 --purpose "closing scout"   # add --height 1080 for small text
+python3 scripts/ype.py priority "$RUN" VIDEO_ID --start 300 --end 360 --reason "owner flagged demo"
+```
+
+A command during the Sabbath checkpoints the run as `paused_sabbath` and exits 75; the run is not ended.
+
 `init` obtains playlist metadata only; curated explicit URLs need no network until acquisition. Inventory retains every position and deduplicates work by video ID. Playlist enumeration is capped at 1,000 and refuses a truncated/cap-sized result. Unavailable entries and explicit skips remain coverage gaps. There is no silent “complete enough” conversion.
 
 Acquisition processes at most two items by default, sequentially. Each item checkpoints before/after work; five unsuccessful attempts require inspection. A 429 ends the current batch and records exponential retry-after, capped at one hour. Authentication/private-video errors require owner input. Completed compatible materials are reused by identity and SHA-256. Timeouts preserve partial files. Re-run the same command after the recorded delay; do not create a duplicate run to avoid backoff. No daemon automatically consumes the next 400 entries.

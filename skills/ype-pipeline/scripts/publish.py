@@ -4,8 +4,8 @@ import base64, html, json, re, math
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 from pathlib import Path
-from core import captions, evidence, evidence_ok, identity_hash, local, read, sha, timestamp, write, write_text
-import community
+from core import account_label, captions, evidence, evidence_ok, identity_hash, local, read, sha, timestamp, write, write_text
+import community, depth
 
 def notebook_url_ok(url):
     return isinstance(url,str) and bool(re.fullmatch(r'https://(?:notebooklm\.google\.com|notebook\.google\.com)/notebook/[A-Za-z0-9_-]+',url))
@@ -28,6 +28,7 @@ def video_checks(root,video,mode):
         if mf['source_sha256']!=media['source']['sha256']:errors.append('frames belong to another source')
         rows=mf['frames'];frames={r['name']:r for r in rows}
         if not rows or len(rows)!=len(frames) or not all(evidence_ok(r) for r in rows):errors.append('missing, duplicate or changed frames')
+        if any(r.get('derived_source') and not evidence_ok(r['derived_source']) for r in rows):errors.append('derived capture source missing or changed')
         if any(Path(r['name']).name!=r['name'] or Path(r['path']).resolve()!=(dest/'frames'/r['name']).resolve() or not image_ok(r['path']) for r in rows):errors.append('frame is outside expected directory or cannot decode')
         if any(not math.isfinite(float(r['timestamp_seconds'])) or not 0<=r['timestamp_seconds']<media['metadata']['duration'] for r in rows):errors.append('frame time outside source')
         original_cues=captions(Path(media['caption']['path']).read_text(errors='replace'))
@@ -100,6 +101,8 @@ def video_checks(root,video,mode):
                         if review.get(key) is not True:errors.append('full semantic acceptance absent: '+key)
             if run.get('infographic_quality_contract')=='source-coverage/1':
                 errors+=infographic_checks(dest,asset,cues,inspected)
+        if run.get('depth_contract')=='depth/1':
+            errors+=depth.video_checks(run,video,dest,rows,cues,a,inspected,float(media['metadata']['duration']),mode)
     except (OSError,ValueError,KeyError,TypeError,StopIteration) as e:
         errors.append('missing or invalid artifact: '+str(e))
     errors+=community_checks(root,video)
@@ -159,7 +162,7 @@ def validate(root):
             package=read(root/'notebooklm/package.json');state=read(root/'notebooklm/state.json')
             if package['collection_digest']!=identity_hash(run):errors.append('source package membership is stale')
             if state.get('source_package_sha256')!=sha(root/'notebooklm/package.json'):errors.append('NotebookLM receipt does not match current package')
-            if state.get('account_label')!='Pulse Vibe Daily' or state.get('account_verified') is not True:errors.append('intended browser account not verified')
+            if not account_label(run) or state.get('account_label')!=account_label(run) or state.get('account_verified') is not True:errors.append('intended browser account not verified')
             if state.get('notebook_title')!=run['title'] or state.get('collection_key')!=run['collection_key']:errors.append('notebook identity/title mismatch')
             if not notebook_url_ok(state.get('notebook_url','')):errors.append('notebook URL absent or invalid')
             packets=package['packets'];receipts=state.get('sources',[])
@@ -184,6 +187,7 @@ def validate(root):
                 if {x.get('video_id') for x in originals}!=set(ids) or any(not x.get('source_account_verified') or not x.get('remote_source_id') for x in originals):errors.append('per-video original/source-account receipts absent')
         except (OSError,ValueError,KeyError,TypeError) as e:errors.append('NotebookLM incomplete: '+str(e))
     errors+=community.matrix_problems(root,run)
+    if run.get('depth_contract')=='depth/1':errors+=depth.batch_checks(root,run)
     ok=not errors and all(not r['errors'] for r in rows)
     report={'mode':run['mode'],'integrity_pass':ok,'status':run['mode']+'_complete_with_review_attestations' if ok else 'incomplete','test_fixture':run.get('test_fixture',False),'per_video':rows,'batch_errors':errors,'limits':'Checks bind local bytes, references and recorded observations. Semantic correctness and remote actions are agent attestations, not independently proven by this script.'}
     if run.get('editorial_contract')=='source-first/1' and run['mode']=='full':report['acceptance']={'artifact_integrity':ok,'semantic_and_visual':'attested' if all(not r['errors'] for r in rows) else 'pending','independently_proven':False}
@@ -249,6 +253,17 @@ def table_html(lines,inline):
 
 STYLE='''*{box-sizing:border-box}body{margin:0;background:#08121f;color:#e6eef8;font:17px/1.65 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:48px 24px}h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.1}h2,h3{line-height:1.3}p,li{color:#b9c9db}a{color:#79c6ff;overflow-wrap:anywhere}.eyebrow{color:#5ee1c0;text-transform:uppercase;letter-spacing:.13em;font-size:.75rem}details{border:1px solid #2a4056;background:#0e2032;border-radius:16px;margin:18px 0;padding:20px;overflow-wrap:anywhere}summary{cursor:pointer;font-weight:700;font-size:1.12rem}summary:focus-visible,a:focus-visible{outline:3px solid #5ee1c0;outline-offset:5px}.meta{font-size:.83rem;color:#8bb0cc}.body{padding-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere}code{font-size:.88em}table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse}th,td{border:1px solid #31445a;padding:12px;min-width:120px;text-align:left}.notice{border-left:3px solid #5ee1c0;padding-left:18px}.chip{padding:5px 9px;background:#16334a;border-radius:8px;margin-right:6px;font-size:.8rem}.card{border:1px solid #2a4056;padding:18px;border-radius:12px;margin:20px 0}@media(max-width:450px){main{padding:26px 16px}details{padding:15px}}@media print{body{background:#fff;color:#111}p,li,.meta{color:#222}details{background:#fff}details:not([open])>.body{display:block}a{color:#174c73}}'''
 
+def provenance_note(dest):
+    """Caption origin and any carried-over review, so a reader never mistakes reuse for a fresh pass."""
+    notes=[]
+    try:notes.append('captions: '+read(dest/'media.json').get('caption_provenance','unrecorded'))
+    except (OSError,ValueError):pass
+    try:
+        carried=read(dest/'analysis.json').get('carried_over')
+        if carried:notes.append('review carried over from '+Path(carried['from_run']).name+' (identical evidence)')
+    except (OSError,ValueError,KeyError):pass
+    return ''.join(' · '+n for n in notes)
+
 def render(root):
     root=Path(root);run=read(root/'run.json');validation=validate(root);sections=[]
     for v,r in zip(run['videos'],validation['per_video']):
@@ -273,6 +288,7 @@ def render(root):
                     body+='<figure><img style="max-width:100%;height:auto" alt="Source-specific infographic for '+html.escape(v.get('title') or v['id'],quote=True)+'" src="data:image/jpeg;base64,'+base64.b64encode(buffer.getvalue()).decode()+'"><figcaption>Native GPT infographic; interpreted from this video and visually reviewed.</figcaption></figure>'
         body+=community_html(dest,run)
         status='Integrity checks passed; semantic review attested' if not r['errors'] else 'Incomplete — '+str(v.get('state','pending'))
+        status+=provenance_note(dest)
         sections.append(f'<details><summary>{html.escape(v.get("title") or v.get("id") or "Unavailable entry")}</summary><div class="body"><p class="meta">{html.escape(status)} · {" · ".join(links)}</p>{body}</div></details>')
     master=root/'master-compilation.md';synthesis=markdown(master.read_text()) if master.exists() else '<p>A cross-video synthesis has not been added yet.</p>'
     synthesis+=matrix_html(root,run)
@@ -313,6 +329,7 @@ def package_inputs(root,run):
 
 def video_sources(root,run,words_per_source,source_cap,caption_mode):
     """One neutral enriched account per unique video, or a blocker before any write."""
+    label=required_account(run)
     if len(run['videos'])>source_cap-1:raise ValueError('One source per video exceeds the notebook source budget (one slot reserved). Plan named volumes; do not combine or omit videos.')
     planned=[]
     for video in run['videos']:
@@ -332,12 +349,17 @@ def video_sources(root,run,words_per_source,source_cap,caption_mode):
     for i,(video,text) in enumerate(planned,1):
         p=out/f'source-{i:03}.txt';write_text(p,text)
         parts.append({'title':video['title']+' — YPE expanded source account','video_id':video['id'],'words':len(text.split()),**evidence(p)})
-    result={'collection_key':run['collection_key'],'collection_digest':identity_hash(run),'input_hashes':package_inputs(root,run),'notebook_title':run['title'],'account_label':'Pulse Vibe Daily','packets':parts,'source_cap':source_cap,'words_per_source':words_per_source,'granularity':'video','caption_mode':caption_mode,'source_contract':'one-video/1','purpose':'One neutral enriched source per video. Project applications, audience reception and cross-video synthesis stay in separate local reports. No upload has occurred.'}
+    result={'collection_key':run['collection_key'],'collection_digest':identity_hash(run),'input_hashes':package_inputs(root,run),'notebook_title':run['title'],'account_label':label,'packets':parts,'source_cap':source_cap,'words_per_source':words_per_source,'granularity':'video','caption_mode':caption_mode,'source_contract':'one-video/1','purpose':'One neutral enriched source per video. Project applications, audience reception and cross-video synthesis stay in separate local reports. No upload has occurred.'}
     write(out/'package.json',result);return result
+
+def required_account(run):
+    label=account_label(run)
+    if not label:raise ValueError('Set notebook_account_label in the workspace settings.json before packaging; this run recorded none.')
+    return label
 
 def packets(root,words_per_source=40000,source_cap=50,granularity=None,caption_mode=None):
     if not 100<=words_per_source<=400000 or not 2<=source_cap<=1000:raise ValueError('Invalid source packet bounds.')
-    root=Path(root);run=read(root/'run.json');blocks=[];owners=[]
+    root=Path(root);run=read(root/'run.json');blocks=[];owners=[];label=required_account(run)
     granularity=granularity or ('video' if run['mode']=='full' else 'batch')
     caption_mode=caption_mode or run.get('notebook_caption_mode','retained')
     if granularity not in ('video','batch') or caption_mode not in ('retained','references'):raise ValueError('Unknown source packaging policy.')
@@ -388,5 +410,5 @@ def packets(root,words_per_source=40000,source_cap=50,granularity=None,caption_m
     for i,text in enumerate(packed,1):
         p=out/f'source-{i:03}.txt';write_text(p,text);label=labels[i-1];title=label['title']+' — YPE visual intelligence'
         parts.append({'title':title,'video_id':label.get('video_id'),'words':len(text.split()),**evidence(p)})
-    result={'collection_key':run['collection_key'],'collection_digest':identity_hash(run),'input_hashes':package_inputs(root,run),'notebook_title':run['title'],'account_label':'Pulse Vibe Daily','packets':parts,'source_cap':source_cap,'words_per_source':words_per_source,'granularity':granularity,'caption_mode':caption_mode,'purpose':'Flat evidence for source ingestion; the rich HTML report is the human view. No upload has occurred.'}
+    result={'collection_key':run['collection_key'],'collection_digest':identity_hash(run),'input_hashes':package_inputs(root,run),'notebook_title':run['title'],'account_label':label,'packets':parts,'source_cap':source_cap,'words_per_source':words_per_source,'granularity':granularity,'caption_mode':caption_mode,'purpose':'Flat evidence for source ingestion; the rich HTML report is the human view. No upload has occurred.'}
     write(out/'package.json',result);return result

@@ -17,4 +17,6 @@ The script checks headings, evidence links and receipt hashes. It cannot establi
 
 Write `analysis.json` only after actual review. Include transcript/source hashes, inspected frame hashes, grounded claims and observations. Bind prose after final edits. For multiple videos, write `master-compilation.md` plus `synthesis.json`: convergence, disagreements, reusable mechanisms and source-grounded implications. Put project-specific experiments in the application report. The synthesis must retain source distinctions, not blend all authors into a single claim.
 
+New runs (`depth/1`) also need, per [depth.md](depth.md): a `sampling_audit` verdict and duration-scaled coverage, opening and closing frames, `legibility` on every observation, claims and observations reaching every quarter (or a `coverage_exception`), acknowledged caption gaps, covered priority sections, `producer.model`, and no placeholder text.
+
 `verify` must pass before presenting a quick run as complete. `render` still produces an explicitly incomplete report when something is missing. Preserve raw videos, original captions, timestamped transcript, frames, analysis and receipts. Deliver captured/inspected counts and the distinction between fresh capture, cached reprocessing and synthetic fixtures.

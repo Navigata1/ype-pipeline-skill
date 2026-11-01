@@ -1,6 +1,6 @@
 """Bounded sequential acquisition; retained originals and timestamped frame evidence."""
 from __future__ import annotations
-import json, re, shutil, subprocess, time, math, tempfile, os, signal
+import contextlib, json, re, shutil, subprocess, time, math, tempfile, os, signal
 from pathlib import Path
 from core import captions, captions_with_audit, evidence, evidence_ok, read, safe_id, timestamp, write, write_text
 
@@ -32,7 +32,15 @@ def ytdlp(extra,url,timeout=300,monitor=None):
 def metadata(url,timeout=300):
     out,_=ytdlp(['--no-playlist','--skip-download','--dump-single-json'],url,timeout)
     d=json.loads(out)
-    return {k:d.get(k) for k in ['id','title','channel','duration','upload_date','webpage_url']}
+    out={k:d.get(k) for k in ['id','title','channel','duration','upload_date','webpage_url']}
+    out.update(manual_caption_languages=sorted(d.get('subtitles') or {}),automatic_captions_available=bool(d.get('automatic_captions')))
+    return out
+
+def caption_provenance(info,track='en'):
+    """yt-dlp prefers an uploaded track over automatic speech recognition for the same language."""
+    manual=info.get('manual_caption_languages')
+    if manual is None:return 'unknown'
+    return 'manual' if any(l==track or l.startswith(track+'-') for l in manual) else 'automatic'
 
 def inventory(url,limit=1000):
     out,_=ytdlp(['--flat-playlist','--skip-download','--dump-single-json','--playlist-end',str(limit)],url,600)
@@ -90,7 +98,7 @@ def acquire(video,archive,max_height,max_bytes,timeout):
     info.update(probe(sources[0],remaining()))
     if info['height']>max_height or sources[0].stat().st_size>max_bytes:raise ValueError('Retrieved media exceeds the configured size or resolution bound; preserved for inspection.')
     version,_=command(['yt-dlp','--version'],min(10,remaining()))
-    data={'id':vid,'url':video['url'],'metadata':info,'source':evidence(sources[0]),'caption':evidence(subs[0]),'retention':'keep','origin':'fresh-download','retrieved_at':time.time(),'extractor_version':version.strip(),'format_policy':fmt,'source_extent':'full','max_bytes':max_bytes}
+    data={'id':vid,'url':video['url'],'metadata':info,'source':evidence(sources[0]),'caption':evidence(subs[0]),'retention':'keep','origin':'fresh-download','retrieved_at':time.time(),'extractor_version':version.strip(),'format_policy':fmt,'source_extent':'full','max_bytes':max_bytes,'caption_provenance':caption_provenance(info,video.get('caption_language','en'))}
     write(mf,data);return data
 
 def import_existing(video,folder):
@@ -99,7 +107,7 @@ def import_existing(video,folder):
     if len(sources)!=1 or not subs:raise ValueError('Existing capture needs one source video and timestamped SRT/VTT captions.')
     meta=read(folder/'metadata.json')
     if meta.get('id')!=video['id']:raise ValueError('Cached metadata must identify the requested video exactly.')
-    return {'id':video['id'],'url':video['url'],'metadata':{'id':video['id'],'title':meta.get('title') or video.get('title') or video['id'],**probe(sources[0])},'source':evidence(sources[0]),'caption':evidence(subs[0]),'retention':'keep','origin':'cached-reprocessing','source_extent':'full','source_folder':str(folder),'imported_at':time.time()}
+    return {'id':video['id'],'url':video['url'],'metadata':{'id':video['id'],'title':meta.get('title') or video.get('title') or video['id'],**probe(sources[0])},'source':evidence(sources[0]),'caption':evidence(subs[0]),'retention':'keep','origin':'cached-reprocessing','source_extent':'full','source_folder':str(folder),'imported_at':time.time(),'caption_provenance':caption_provenance(meta)}
 
 def materialize(root,video,data):
     root=Path(root);vid=video['id'];dest=root/'videos'/vid;dest.mkdir(parents=True,exist_ok=True)
@@ -157,3 +165,64 @@ def capture_moments(root,video):
         mf['frames']=list(existing.values());write(frames/'manifest.json',mf)
     mf['moment_map_sha256']=evidence(dest/'moments.json')['sha256'];write(frames/'manifest.json',mf)
     return mf
+
+def capture(root,video,seconds,purpose,height=None,archive_lock=None):
+    """Targeted frames at original times: scouts, priority sections, or a higher-resolution derived section."""
+    dest=Path(root)/'videos'/video['id'];data=read(dest/'media.json');frames=dest/'frames';mf=read(frames/'manifest.json')
+    if not evidence_ok(data['source']):raise ValueError('Source hash mismatch.')
+    duration=float(data['metadata']['duration']);seconds=sorted({round(float(s),3) for s in seconds})
+    if not seconds or len(seconds)>200 or any(not math.isfinite(s) or not 0<=s<duration for s in seconds):raise ValueError('Capture times must lie inside the source (at most 200 per call).')
+    if not str(purpose).strip():raise ValueError('A capture needs a purpose.')
+    source=data['source'];offset=0.0;derived=None
+    if height:
+        if not 240<=int(height)<=2160:raise ValueError('Derived height must be 240..2160.')
+        start=max(0.0,seconds[0]-2);end=min(duration,seconds[-1]+2)
+        if end-start>180:raise ValueError('A derived section is at most 180 seconds; capture separate sections.')
+        folder=Path(source['path']).parent/'derived';folder.mkdir(exist_ok=True);stem=f'h{int(height)}_{int(start*1000):09}_{int(end*1000):09}'
+        existing=[p for p in folder.glob(stem+'.*') if p.suffix.lower() in ('.mp4','.mkv','.webm')]
+        if not existing:
+            with (archive_lock or contextlib.nullcontext()):
+                ytdlp(['--no-playlist','--download-sections',f'*{start:.3f}-{end:.3f}','-f',f'bv[height<={int(height)}]/b[height<={int(height)}]','-o',str(folder/(stem+'.%(ext)s'))],video['url'],600)
+            existing=[p for p in folder.glob(stem+'.*') if p.suffix.lower() in ('.mp4','.mkv','.webm')]
+        if len(existing)!=1:raise RuntimeError('Derived section download incomplete; partials preserved.')
+        derived={**evidence(existing[0]),'height':probe(existing[0])['height'],'section_start':start,'section_end':end,'note':'Derived capture for legibility; the retained source is unchanged.'}
+        source=derived;offset=start
+    rows={r['name']:r for r in mf['frames']}
+    for s in seconds:
+        # Millisecond names; a derived frame also names its height and section so captures never alias.
+        name=(f'h{int(height)}s{round(offset*1000):09}' if derived else 't')+f'_{round(s*1000):09}.jpg';path=frames/name
+        if name in rows and evidence_ok(rows[name]):continue
+        command(['ffmpeg','-v','error','-ss',str(max(0.0,s-offset)),'-i',source['path'],'-frames:v','1','-q:v','2','-y',str(path)],120)
+        row={'name':name,'timestamp_seconds':s,'method':'requested-seek-nearest-frame','purpose':str(purpose).strip(),**evidence(path)}
+        if derived:row['derived_source']=derived
+        rows[name]=row;mf['frames']=list(rows.values());write(frames/'manifest.json',mf)
+    return {'frames':len(mf['frames']),'captured':[n for n in rows if rows[n]['timestamp_seconds'] in seconds]}
+
+def contact_sheets(root,video,per_sheet=20,columns=5,width=320):
+    """Labelled orientation sheets. They help choose originals to open; they are not evidence of inspection."""
+    from PIL import Image, ImageDraw
+    if not 4<=per_sheet<=48 or not 2<=columns<=8:raise ValueError('Sheet layout out of range.')
+    dest=Path(root)/'videos'/video['id'];rows=sorted(read(dest/'frames/manifest.json')['frames'],key=lambda r:r['timestamp_seconds'])
+    if not all(evidence_ok(r) for r in rows):raise ValueError('Frame evidence changed; resample before building sheets.')
+    out=dest/'review-contact-sheets';out.mkdir(exist_ok=True);index=[]
+    for k in range(0,len(rows),per_sheet):
+        chunk=rows[k:k+per_sheet];thumbs=[]
+        for r in chunk:
+            with Image.open(r['path']) as im:im=im.convert('RGB');h=max(1,round(im.height*width/im.width));thumbs.append(im.resize((width,h)))
+        cell=max(t.height for t in thumbs)+22;sheet=Image.new('RGB',(columns*width,cell*math.ceil(len(chunk)/columns)),'white');draw=ImageDraw.Draw(sheet)
+        for i,(r,t) in enumerate(zip(chunk,thumbs)):
+            x,y=i%columns*width,i//columns*cell;sheet.paste(t,(x,y));draw.text((x+4,y+t.height+4),f'{r["name"]}  {timestamp(r["timestamp_seconds"])}',fill='black')
+        name=f'sheet_{k//per_sheet+1:02}.jpg';sheet.save(out/name,quality=88);index.append({'sheet':name,'frames':[r['name'] for r in chunk]})
+    write(out/'index.json',{'note':'Orientation only. Record inspected originals in analysis.json.','sheets':index});return {'sheets':len(index),'folder':str(out)}
+
+def enlarge(root,video,frame,box,scale=3):
+    """A cropped, enlarged view of one frame for reading small UI or code text."""
+    from PIL import Image
+    dest=Path(root)/'videos'/video['id'];rows={r['name']:r for r in read(dest/'frames/manifest.json')['frames']}
+    if frame not in rows or not evidence_ok(rows[frame]):raise ValueError('Unknown or changed frame.')
+    if not 2<=scale<=6:raise ValueError('Scale must be 2..6.')
+    x0,y0,x1,y1=box;out=dest/'review-enlargements';out.mkdir(exist_ok=True)
+    with Image.open(rows[frame]['path']) as im:
+        if not 0<=x0<x1<=im.width or not 0<=y0<y1<=im.height:raise ValueError('Crop box outside the frame.')
+        path=out/f'{Path(frame).stem}_x{scale}_{x0}_{y0}_{x1}_{y1}.png';im.crop(box).resize(((x1-x0)*scale,(y1-y0)*scale),Image.LANCZOS).save(path)
+    return {'enlargement':str(path),'frame':frame}

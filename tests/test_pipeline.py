@@ -2,6 +2,13 @@ import copy, importlib, json, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/ype-pipeline/scripts'))
+import os, tempfile as _tempfile, json as _json
+# Isolate the suite from the owner's workspace settings. The observance is
+# switched off here only so tests stay deterministic on any day of the week;
+# test_v83.py exercises the Sabbath window with explicit clocks.
+_SETTINGS=Path(_tempfile.mkdtemp(prefix='ype-settings-'))/'settings.json'
+_SETTINGS.write_text(_json.dumps({'notebook_account_label':'Pulse Vibe Daily','sabbath':{'enabled':False}}))
+os.environ['YPE_SETTINGS']=str(_SETTINGS)
 import core, media, publish, ype
 
 VID='XIk-Ru85xmA'; URL='https://www.youtube.com/watch?v='+VID
@@ -10,7 +17,7 @@ def fixture(root,mode='quick'):
     root=Path(root);run=ype.make_run([URL],'Fixture playlist',mode,test_fixture=True)
     # Historical receipt fixtures exercise compatibility. New contracts have
     # dedicated positive and mutation tests in test_source_packaging.py.
-    for key in ['editorial_contract','source_fidelity_contract','infographic_quality_contract','notebook_source_contract','notebook_caption_mode']:run.pop(key,None)
+    for key in ['editorial_contract','source_fidelity_contract','infographic_quality_contract','notebook_source_contract','notebook_caption_mode','depth_contract','notebook_account_label']:run.pop(key,None)
     dest=root/'videos'/VID;dest.mkdir(parents=True)
     source=dest/'fixture.webm';source.write_bytes(b'synthetic-video-not-a-real-download')
     sub=dest/'fixture.vtt';sub.write_text('WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nA useful idea about persistent records.\n\n00:00:05.000 --> 00:00:10.000\nRecords can keep context across sessions.\n')

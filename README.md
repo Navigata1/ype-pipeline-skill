@@ -2,7 +2,7 @@
 
 **YPE (YouTube Pipeline Experience)** turns YouTube videos and playlists into evidence-grounded research: the complete transcript, sampled frames with their original timestamps, a per-video analysis that separates what was said from what was shown, and an expandable HTML report. Full mode adds enhanced transcripts, intelligence reports, native image-generated infographics and a playlist-named NotebookLM notebook with audio and slides.
 
-Current version: **YPE v8.1**. The v7.2 single-file skill is kept in [`archive/v7.2/`](archive/v7.2/SKILL.md).
+Current version: **YPE v8.3**. The v7.2 single-file skill is kept in [`archive/v7.2/`](archive/v7.2/SKILL.md).
 
 ## What changed in v8
 
@@ -20,6 +20,12 @@ Full mode preserves the complete cleaned spoken substance section by section, in
 New full runs package exactly one neutral enriched source per unique video. Capacity limits stop packaging instead of silently combining videos, splitting one video or reducing substance. Audience reception and the claim matrix remain opt-in analytical layers in the local report. Existing runs keep their recorded contracts.
 
 These checks bind evidence and recorded review; they cannot independently prove semantic quality or remote actions.
+
+## Coverage, reuse and the Sabbath in v8.3
+
+v8.3 restores what earlier versions learned and the v8 rewrite dropped: frame coverage scaled to duration with a gap audit, recoverable small text (contact sheets, enlargements, higher-resolution derived captures), thinness and spread checks, structured intelligence reports and category compilations, caption provenance and owner priority sections, and reuse of reviewed work across runs when the evidence is byte-identical. See [`references/depth.md`](skills/ype-pipeline/references/depth.md).
+
+YPE observes the Sabbath: no pipeline work from Friday sunset to Saturday sunset for the location in `settings.json`. A run in progress is paused and checkpointed, not ended, and `ype.py run` resumes acquisition on its own after sunset.
 
 ## Layout
 

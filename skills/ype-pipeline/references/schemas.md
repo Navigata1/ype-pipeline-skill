@@ -31,6 +31,23 @@ For `timed-source-account/1`, also bind `source_map_sha256`. `enhanced-source-ma
 
 `categories.json`: `{"categories":[{"name":"Mechanism name","video_ids":["VIDEO_ID"]}]}`. Cover every video in exactly one primary category.
 
+## Depth receipts (`depth_contract: depth/1`)
+
+`analysis.json` adds:
+```json
+{
+  "producer": {"model": "model that wrote the analysis", "harness": "optional"},
+  "sampling_audit": {"verdict": "pass", "accepted_gaps": [{"start": 300, "end": 460, "reason": "unchanging title card"}]},
+  "observations": [{"frame": "f_0010.jpg", "timestamp_seconds": 42.5, "legibility": "clear", "description": "..."}],
+  "coverage_exception": "only when a quarter of the source has nothing to cite, with the reason",
+  "caption_gaps_acknowledged": "only when verify reports a caption problem: what the frames show for that stretch",
+  "carried_over": {"from_run": "written by carry-over; never by hand"}
+}
+```
+`sampling_audit.verdict` is `pass` or `visual_static_downgrade_accepted` (the latter with `reason`). `run.json` videos may carry `priority_sections: [{start, end, reason}]`, written by `priority`.
+
+Full mode adds `producer` to `full-review.json` and `infographic.json`; `full-review.json.spot_checks: [{position: "early|middle|late", cue_index, finding}]`; optional `thin_reason` and `long_section_reason` on source-map sections; and, in `categories.json`, `compilation: EVIDENCE` with `analyses: {VIDEO_ID: SHA-256}` for each category holding two or more videos. Frame manifest rows from `capture --height` carry `derived_source: EVIDENCE` plus its section bounds.
+
 ## Audience channel receipts
 
 `run.json` records the options: `community:{enabled,top,max_comments,per_thread,reply_weight,second_labeller}` and `claim_matrix:true`.
